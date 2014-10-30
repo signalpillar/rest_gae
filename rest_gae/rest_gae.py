@@ -566,7 +566,7 @@ class BaseRESTHandler(webapp2.RequestHandler):
 def get_rest_class(ndb_model, base_url, **kwd):
     """Returns a RESTHandlerClass with the ndb_model and permissions set according to input"""
 
-    class RESTHandlerClass(BaseRESTHandler, blobstore_handlers.BlobstoreUploadHandler, blobstore_handlers.BlobstoreDownloadHandler):
+    class RESTHandlerClass(BaseRESTHandler):
 
         model = import_class(ndb_model)
         # Save the base API URL for the model (used for BlobKeyProperty)
@@ -598,8 +598,6 @@ def get_rest_class(ndb_model, base_url, **kwd):
 
         def __init__(self, request, response):
             self.initialize(request, response)
-            blobstore_handlers.BlobstoreUploadHandler.__init__(self, request, response)
-            blobstore_handlers.BlobstoreDownloadHandler.__init__(self, request, response)
 
             self.after_get_callback = self.after_get_callback[0]
             self.before_post_callback = self.before_post_callback[0]
@@ -712,7 +710,9 @@ def get_rest_class(ndb_model, base_url, **kwd):
                         raise RESTException('"%s" is not a BlobKeyProperty' % property_name)
 
                     # Send the blob contents
-                    self.send_blob(blob_key)
+                    download_handler = blobstore_handlers.BlobstoreDownloadHandler(
+                        self.request, self.response)
+                    download_handler.send_blob(blob_key)
 
                     # Make sure we don't return a value (i.e. not write to self.response) - so self.send_blob will work properly
                     return NoResponseResult()
@@ -743,7 +743,10 @@ def get_rest_class(ndb_model, base_url, **kwd):
                     raise RESTException('"%s" is not a BlobKeyProperty' % property_name)
 
                 # Next, get the created blob
-                upload_files = self.get_uploads()
+
+                upload_handler = blobstore_handlers.BlobstoreUploadHandler(
+                    self.request, self.response)
+                upload_files = upload_handler.get_uploads()
 
                 if not upload_files:
                     # No upload data - this happens when the user POSTS for the first time - we need to create an upload URL and redirect
@@ -978,5 +981,3 @@ class RESTHandler(NamePrefixRoute): # We inherit from NamePrefixRoute so the sam
 
 
         super(RESTHandler, self).__init__('rest-handler-', routes)
-
-
