@@ -13,3 +13,6 @@
 ehthumbs.db
 Thumbs.db
 
+
+.cache
+*.egg-info/
