@@ -1,13 +1,13 @@
 """
-Wraps NDB models and provided REST APIs (GET/POST/PUT/DELETE) arounds them.  Fully supports permissions.
+Wraps NDB models and provided REST APIs (GET/POST/PUT/DELETE) arounds them.
+
+Fully supports permissions.
 
 Some code is taken from: https://github.com/abahgat/webapp2-user-accounts
 """
 
-import importlib
 import json
 import re
-from urlparse import urlparse
 from datetime import datetime, time, date
 from urllib import urlencode
 import webapp2
@@ -33,7 +33,6 @@ PERMISSION_ANYONE = 'anyone'
 PERMISSION_LOGGED_IN_USER = 'logged_in_user'
 PERMISSION_OWNER_USER = 'owner_user'
 PERMISSION_ADMIN = 'admin'
-
 
 
 class NDBEncoder(json.JSONEncoder):
@@ -82,15 +81,18 @@ class NDBEncoder(json.JSONEncoder):
         else:
             return json.JSONEncoder.default(self, obj)
 
+
 class RESTException(Exception):
     """REST methods exception"""
-    pass
 
 
 class NoResponseResult(object):
-    """A class representing a non-response - used by rest_method_wrapper to detect when we shouldn't print any data with response.write.
-    Used when serving blobs (for BlobKeyProperty)"""
-    pass
+    """A class representing a non-response
+
+    Used by rest_method_wrapper to detect when we shouldn't print any data
+    with response.write.
+    Used when serving blobs (for BlobKeyProperty)
+    """
 
 
 #
@@ -108,7 +110,6 @@ def get_translation_table(model, input_type):
     translation_table.update(getattr(model.RESTMeta, 'translate_%s_property_names' % input_type, {}))
 
     return translation_table
-
 
 
 def translate_property_names(data, model, input_type):
@@ -139,6 +140,7 @@ def translate_property_names(data, model, input_type):
             data[old_name] = original_value
 
     return data
+
 
 def get_included_properties(model, input_type):
     """Gets the properties of a `model` class to use for input/output (`input_type`). Uses the
@@ -188,27 +190,31 @@ def import_class(input_cls):
         (module_name, class_name) = input_cls.rsplit('.', 1)
         module = __import__(module_name, fromlist=[class_name])
         return getattr(module, class_name)
-    except Exception, exc:
+    except Exception:
         # Couldn't import the class
         raise ValueError("Couldn't import the model class '%s'" % input_cls)
 
 
 class BaseRESTHandler(webapp2.RequestHandler):
-    """Base request handler class for REST handlers (used by RESTHandlerClass and UserRESTHandlerClass)"""
+    """Base request handler class for REST handlers
 
+    (used by RESTHandlerClass and UserRESTHandlerClass)
+    """
 
-    # The default number of results to return for a query in case `limit` parameter wasn't provided by the user
+    #: The default number of results to return for a query in case
+    # `limit` parameter wasn't provided by the user
     DEFAULT_MAX_QUERY_RESULTS = 1000
 
-    # The names of properties that should be excluded from input/output
-    DEFAULT_EXCLUDED_INPUT_PROPERTIES = [ 'class_' ] # 'class_' is a PolyModel attribute
-    DEFAULT_EXCLUDED_OUTPUT_PROPERTIES = [ ]
-
+    #: The names of properties that should be excluded from input/output
+    DEFAULT_EXCLUDED_INPUT_PROPERTIES = [
+        # 'class_' is a PolyModel attribute
+        'class_'
+    ]
+    DEFAULT_EXCLUDED_OUTPUT_PROPERTIES = []
 
     #
     # Session related methods/properties
     #
-
 
     def dispatch(self):
         """Needed in order for the webapp2 sessions to work"""
@@ -248,24 +254,19 @@ class BaseRESTHandler(webapp2.RequestHandler):
 
         return response
 
-
     @webapp2.cached_property
     def session(self):
         """Shortcut to access the current session."""
         return self.session_store.get_session(backend="datastore")
 
-
-
     #
     # Authentication methods/properties
     #
-
 
     @webapp2.cached_property
     def auth(self):
         """Shortcut to access the auth instance as a property."""
         return auth.get_auth()
-
 
     @webapp2.cached_property
     def user_info(self):
@@ -300,11 +301,9 @@ class BaseRESTHandler(webapp2.RequestHandler):
         u = self.user_info
         return self.user_model.get_by_id(u['user_id']) if u else None
 
-
     #
     # HTTP response helper methods
     #
-
 
     def get_response(self, status, content):
         """Returns an HTTP status message with JSON-encoded content (and appropriate HTTP response headers)"""
@@ -332,7 +331,7 @@ class BaseRESTHandler(webapp2.RequestHandler):
         return self.get_response(405, {})
 
     def permission_denied(self, reason=None):
-        return self.get_response(403, { 'reason': reason})
+        return self.get_response(403, {'reason': reason})
 
     def unauthorized(self):
         return self.get_response(401, {})
@@ -340,15 +339,15 @@ class BaseRESTHandler(webapp2.RequestHandler):
     def redirect(self, url, **kwd):
         return webapp2.redirect(url, **kwd)
 
-
-
     #
     # Utility methods
     #
 
-
     def _model_id_to_model(self, model_id):
-        """Returns the model according to the model_id; raises an exception if invalid ID / model not found"""
+        """Return the model according to the model_id
+
+        Raises an exception if invalid ID / model not found
+        """
 
         if not model_id:
             return None
@@ -358,26 +357,31 @@ class BaseRESTHandler(webapp2.RequestHandler):
                 model = ndb.Key(self.model, model_id).get()
             else:
                 model = ndb.Key(urlsafe=model_id).get()
-            if not model: raise Exception()
-        except Exception, exc:
+            if not model:
+                raise Exception()
+        except Exception:
             # Invalid key name
             raise RESTException('Invalid model id - %s' % model_id)
 
         return model
 
-
     def _build_next_query_url(self, cursor):
-        """Returns the next URL to fetch results for - used when paging. Returns none if no more results"""
+        """Return the next URL to fetch results for
+
+        Used when paging.
+        Returns none if no more results
+        """
         if not cursor:
             return None
 
-        # Use all of the original query arguments - just override the cursor argument
+        # Use all of the original query arguments - just override the cursor
+        # argument
         params = self.request.GET
         params['cursor'] = cursor.urlsafe()
         return self.request.path_url + '?' + urlencode(params)
 
     def _filter_query(self):
-        """Filters the query results for given property filters (if provided by user)."""
+        """Filter the query results for given property filters (if provided by user)."""
 
         if not self.request.GET.get('q'):
             # No query given - return as-is
@@ -394,10 +398,9 @@ class BaseRESTHandler(webapp2.RequestHandler):
                 query = re.sub(r'\b%s\s*(<=|>=|=|<|>|!=|(\s+IN\s+))' % new_name, r'%s \1' % original_name, query, flags=re.IGNORECASE)
 
             return self.model.gql('WHERE ' + query)
-        except Exception, exc:
+        except Exception:
             # Invalid query
             raise RESTException('Invalid query param - "%s"' % self.request.GET.get('q'))
-
 
     def _fetch_query(self, query):
         """Fetches the query results for a given limit (if provided by user) and for a specific results page (if given by user).
@@ -435,7 +438,6 @@ class BaseRESTHandler(webapp2.RequestHandler):
 
         return (results, cursor)
 
-
     def _order_query(self, query):
         """Orders the query if input given by user. Returns the modified, sorted query"""
 
@@ -467,23 +469,31 @@ class BaseRESTHandler(webapp2.RequestHandler):
         # Return the ordered query
         return query.order(*orders)
 
-
     def _build_model_from_data(self, data, cls, model=None):
-        """Builds a model instance (according to `cls`) from user input and returns it. Updates an existing model instance if given.
-        Raises exceptions if input data is invalid."""
+        """Build a model instance (according to `cls`) from user input
+
+        :param model: Optional existing model that will be updated if present.
+        :return: Built model instance from passed data.
+        :raise :class:`RESTException`: Invalid input data.
+        """
 
         # Translate the property names (this is done before the filtering in order to get the original property names by which the filtering is done)
         data = translate_property_names(data, cls, 'input')
 
         # Transform any raw input data into appropriate NDB properties - write all transformed properties
         # into another dict (so any other unauthorized properties will be ignored).
-        input_properties = { }
-        for (name, prop) in cls._properties.iteritems():
-            if name not in data: continue # Input not given by user
+        input_properties = {}
+        for name, prop in cls._properties.iteritems():
+            # Input not given by user
+            if name not in data:
+                continue
 
             if prop._repeated:
                 # This property is repeated (i.e. an array of values)
-                input_properties[name] = [self._value_to_property(value, prop) for value in data[name]]
+                input_properties[name] = [
+                    self._value_to_property(value, prop)
+                    for value in data[name]
+                ]
             else:
                 input_properties[name] = self._value_to_property(data[name], prop)
 
@@ -494,7 +504,11 @@ class BaseRESTHandler(webapp2.RequestHandler):
 
         # Filter the input properties
         included_properties = get_included_properties(cls, 'input')
-        input_properties = dict((k,v) for k,v in input_properties.iteritems() if k in included_properties)
+        input_properties = dict(
+            (k, v)
+            for k, v in input_properties.iteritems()
+            if k in included_properties
+        )
 
         # Set the user owner property to the currently logged-in user (if it's defined for the model class) - note that we're doing this check on the input `cls` parameter
         # and not the self.model class, since we need to support when a model has an inner StructuredProperty, and that model has its own RESTMeta definition.
@@ -561,8 +575,6 @@ class BaseRESTHandler(webapp2.RequestHandler):
             return value
 
 
-
-
 def get_rest_class(ndb_model, base_url, **kwd):
     """Returns a RESTHandlerClass with the ndb_model and permissions set according to input"""
 
@@ -606,7 +618,6 @@ def get_rest_class(ndb_model, base_url, **kwd):
             self.after_put_callback = self.after_put_callback[0]
             self.before_delete_callback = self.before_delete_callback[0]
             self.after_delete_callback = self.after_delete_callback[0]
-
 
         def rest_method_wrapper(func):
             """Wraps GET/POST/PUT/DELETE methods and adds standard functionality"""
@@ -657,18 +668,14 @@ def get_rest_class(ndb_model, base_url, **kwd):
 
             return inner_f
 
-
         #
         # REST endpoint methods
         #
-
-
 
         @rest_method_wrapper
         def options(self, model, property_name=None):
             """OPTIONS endpoint - doesn't return anything (only returns options in the HTTP response headers)"""
             return ''
-
 
         @rest_method_wrapper
         def get(self, model, property_name=None):
@@ -726,7 +733,6 @@ def get_rest_class(ndb_model, base_url, **kwd):
 
                 return model
 
-
         @rest_method_wrapper
         def post(self, model, property_name=None):
             """POST endpoint - adds a new model instance"""
@@ -769,8 +775,6 @@ def get_rest_class(ndb_model, base_url, **kwd):
                 # Everything was OK
                 return { 'status': True }
 
-
-
             try:
                 # Parse POST data as JSON
                 json_data = json.loads(self.request.body)
@@ -802,7 +806,6 @@ def get_rest_class(ndb_model, base_url, **kwd):
 
             # Return the newly-created model instance(s)
             return models
-
 
         @rest_method_wrapper
         def put(self, model, property_name=None):
@@ -848,7 +851,6 @@ def get_rest_class(ndb_model, base_url, **kwd):
 
             return models
 
-
         def _delete_model_blobs(self, model):
             """Deletes all blobs associated with the model (finds all BlobKeyProperty)"""
 
@@ -856,8 +858,6 @@ def get_rest_class(ndb_model, base_url, **kwd):
                 if isinstance(prop, ndb.BlobKeyProperty):
                     if getattr(model, name):
                         blobstore.delete(getattr(model, name))
-
-
 
         @rest_method_wrapper
         def delete(self, model, property_name=None):
@@ -903,7 +903,6 @@ def get_rest_class(ndb_model, base_url, **kwd):
         # Utility methods/properties
         #
 
-
         @webapp2.cached_property
         def is_user_admin(self):
             """Determines if the currently logged-in user is an admin or not (relies on the user class RESTMeta.admin_property)"""
@@ -928,10 +927,6 @@ def get_rest_class(ndb_model, base_url, **kwd):
         def get_model_owner(self, model):
             """Returns the user owner of the given `model` (relies on RESTMeta.user_owner_property)"""
             return getattr(model, self.user_owner_property)
-
-
-
-
 
     # Return the class statically initialized with given input arguments
     return RESTHandlerClass
@@ -977,7 +972,5 @@ class RESTHandler(NamePrefixRoute): # We inherit from NamePrefixRoute so the sam
 
                 # Upload/Download blob route and handler
                 routes.insert(0, webapp2.Route(blob_property_url, get_rest_class(model, url, **kwd), 'upload-download-blob'))
-
-
 
         super(RESTHandler, self).__init__('rest-handler-', routes)
